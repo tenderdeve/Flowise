@@ -104,6 +104,29 @@ class Milvus_VectorStores implements INode {
                 acceptVariable: true
             },
             {
+                label: 'Metric Type',
+                name: 'milvusMetricType',
+                description: 'Metric type for vector similarity search',
+                type: 'options',
+                default: 'L2',
+                options: [
+                    {
+                        label: 'L2 (Euclidean)',
+                        name: 'L2'
+                    },
+                    {
+                        label: 'COSINE',
+                        name: 'COSINE'
+                    },
+                    {
+                        label: 'IP (Inner Product)',
+                        name: 'IP'
+                    }
+                ],
+                additionalParams: true,
+                optional: true
+            },
+            {
                 label: 'Top K',
                 name: 'topK',
                 description: 'Number of top results to fetch. Default to 4',
@@ -194,11 +217,15 @@ class Milvus_VectorStores implements INode {
             // partition
             const partitionName = nodeData.inputs?.milvusPartition ?? '_default'
 
+            // metric type
+            const metricType = (nodeData.inputs?.milvusMetricType as string) || 'L2'
+
             // init MilvusLibArgs
-            const milVusArgs: MilvusLibArgs = {
+            const milVusArgs: MilvusLibArgs & { metricType?: string } = {
                 url: address,
                 collectionName: collectionName,
-                partitionName: partitionName
+                partitionName: partitionName,
+                metricType: metricType
             }
 
             if (secure) {
@@ -276,6 +303,9 @@ class Milvus_VectorStores implements INode {
         // partition
         const partitionName = nodeData.inputs?.milvusPartition ?? '_default'
 
+        // metric type
+        const metricType = (nodeData.inputs?.milvusMetricType as string) || 'L2'
+
         // init MilvusLibArgs
         const milVusArgs: MilvusLibArgs = {
             url: address,
@@ -307,6 +337,10 @@ class Milvus_VectorStores implements INode {
         }
 
         const vectorStore = await Milvus.fromExistingCollection(embeddings, milVusArgs)
+        vectorStore.indexCreateParams = {
+            ...vectorStore.indexCreateParams,
+            metric_type: metricType
+        }
 
         // Avoid Illegal Invocation
         vectorStore.similaritySearchVectorWithScore = async (query: number[], k: number, filter?: string) => {
@@ -413,6 +447,16 @@ const similaritySearchVectorWithScore = async (query: number[], k: number, vecto
 }
 
 class MilvusUpsert extends Milvus {
+    constructor(embeddings: Embeddings, args: MilvusLibArgs & { metricType?: string }) {
+        super(embeddings, args)
+        if (args.metricType) {
+            this.indexCreateParams = {
+                ...this.indexCreateParams,
+                metric_type: args.metricType
+            }
+        }
+    }
+
     async addVectors(vectors: number[][], documents: Document[]): Promise<void> {
         if (vectors.length === 0) {
             return
@@ -471,7 +515,7 @@ class MilvusUpsert extends Milvus {
                 field_name: this.vectorField,
                 index_name: `myindex_${Date.now().toString()}`,
                 index_type: IndexType.AUTOINDEX,
-                metric_type: MetricType.L2
+                metric_type: this.indexCreateParams.metric_type ?? MetricType.L2
             })
             if (resp.error_code !== ErrorCode.SUCCESS) {
                 throw new Error(`Error creating index`)
