@@ -31,7 +31,7 @@ import useApi from '@/hooks/useApi'
 
 // utils
 import useNotifier from '@/utils/useNotifier'
-import { generateRandomGradient, formatDataGridRows } from '@/utils/genericHelper'
+import { generateRandomGradient, formatDataGridRows, isValidURL } from '@/utils/genericHelper'
 import { HIDE_CANVAS_DIALOG, SHOW_CANVAS_DIALOG } from '@/store/actions'
 
 const exampleAPIFunc = `/*
@@ -88,6 +88,17 @@ const ToolDialog = ({ show, dialogProps, onUseTemplate, onCancel, onConfirm, set
 
     const [showPasteJSONDialog, setShowPasteJSONDialog] = useState(false)
 
+    // Tool Icon Source is optional, but when provided it must be a valid http(s) URL
+    const toolIconError = useMemo(() => {
+        const trimmed = (toolIcon || '').trim()
+        if (!trimmed) return ''
+        const parsed = isValidURL(trimmed)
+        if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+            return 'Tool Icon Source must be a valid http(s) URL'
+        }
+        return ''
+    }, [toolIcon])
+
     const deleteItem = useCallback(
         (id) => () => {
             setTimeout(() => {
@@ -120,7 +131,7 @@ const ToolDialog = ({ show, dialogProps, onUseTemplate, onCancel, onConfirm, set
             tool: {
                 name: toolName,
                 description: toolDesc,
-                iconSrc: toolIcon,
+                iconSrc: toolIcon.trim(),
                 schema: toolSchema,
                 func: toolFunc
             }
@@ -284,7 +295,7 @@ const ToolDialog = ({ show, dialogProps, onUseTemplate, onCancel, onConfirm, set
                 color: generateRandomGradient(),
                 schema: JSON.stringify(toolSchema),
                 func: toolFunc,
-                iconSrc: toolIcon
+                iconSrc: toolIcon.trim()
             }
             const createResp = await toolsApi.createNewTool(obj)
             if (createResp.data) {
@@ -329,7 +340,7 @@ const ToolDialog = ({ show, dialogProps, onUseTemplate, onCancel, onConfirm, set
                 description: toolDesc,
                 schema: JSON.stringify(toolSchema),
                 func: toolFunc,
-                iconSrc: toolIcon
+                iconSrc: toolIcon.trim()
             })
             if (saveResp.data) {
                 enqueueSnackbar({
@@ -509,12 +520,18 @@ const ToolDialog = ({ show, dialogProps, onUseTemplate, onCancel, onConfirm, set
                             id='toolIcon'
                             type='string'
                             fullWidth
+                            error={!!toolIconError}
                             disabled={dialogProps.type === 'TEMPLATE'}
                             placeholder='https://raw.githubusercontent.com/gilbarbara/logos/main/logos/airtable.svg'
                             value={toolIcon}
                             name='toolIcon'
                             onChange={(e) => setToolIcon(e.target.value)}
                         />
+                        {toolIconError && (
+                            <Typography variant='caption' sx={{ color: 'error.main', mt: 0.5, display: 'block' }}>
+                                {toolIconError}
+                            </Typography>
+                        )}
                     </Box>
                     <Box>
                         <Stack sx={{ position: 'relative', justifyContent: 'space-between' }} direction='row'>
@@ -583,7 +600,7 @@ const ToolDialog = ({ show, dialogProps, onUseTemplate, onCancel, onConfirm, set
                 {dialogProps.type !== 'TEMPLATE' && (
                     <StyledPermissionButton
                         permissionId={'tools:update,tools:create'}
-                        disabled={!(toolName && toolDesc)}
+                        disabled={!(toolName && toolDesc) || !!toolIconError}
                         variant='contained'
                         onClick={() => (dialogProps.type === 'ADD' || dialogProps.type === 'IMPORT' ? addNewTool() : saveTool())}
                     >

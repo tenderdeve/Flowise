@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types'
+import { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 
 // material-ui
@@ -35,6 +36,15 @@ const ItemCard = ({ data, images, icons, scheduleStatus, onClick }) => {
     const theme = useTheme()
     const customization = useSelector((state) => state.customization)
 
+    // Fall back to the color/default circle when iconSrc is missing or fails to load
+    const [iconLoadError, setIconLoadError] = useState(false)
+    useEffect(() => {
+        setIconLoadError(false)
+    }, [data.iconSrc])
+
+    const showIconImage = Boolean(data.iconSrc) && !iconLoadError
+    const fallbackBackground = data.color || theme.palette.grey[300] + 75
+
     return (
         <CardWrapper content={false} onClick={onClick} sx={{ border: 1, borderColor: theme.palette.grey[900] + 25, borderRadius: 2 }}>
             <Box sx={{ height: '100%', p: 2.25 }}>
@@ -49,7 +59,7 @@ const ItemCard = ({ data, images, icons, scheduleStatus, onClick }) => {
                                 overflow: 'hidden'
                             }}
                         >
-                            {data.iconSrc && (
+                            {(data.iconSrc || data.color) && (
                                 <div
                                     style={{
                                         width: 35,
@@ -58,25 +68,24 @@ const ItemCard = ({ data, images, icons, scheduleStatus, onClick }) => {
                                         flexShrink: 0,
                                         marginRight: 10,
                                         borderRadius: '50%',
-                                        backgroundImage: `url(${data.iconSrc})`,
-                                        backgroundSize: 'contain',
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'center center'
+                                        overflow: 'hidden',
+                                        background: fallbackBackground
                                     }}
-                                ></div>
-                            )}
-                            {!data.iconSrc && data.color && (
-                                <div
-                                    style={{
-                                        width: 35,
-                                        height: 35,
-                                        display: 'flex',
-                                        flexShrink: 0,
-                                        marginRight: 10,
-                                        borderRadius: '50%',
-                                        background: data.color
-                                    }}
-                                ></div>
+                                >
+                                    {showIconImage && (
+                                        <img
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'contain',
+                                                borderRadius: '50%'
+                                            }}
+                                            alt=''
+                                            src={data.iconSrc}
+                                            onError={() => setIconLoadError(true)}
+                                        />
+                                    )}
+                                </div>
                             )}
                             <Typography
                                 sx={{
